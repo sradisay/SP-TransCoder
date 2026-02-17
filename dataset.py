@@ -8,21 +8,24 @@ class UnpairedCodeDataset:
         
         for lang in languages:
             try:
-                # The Stack requires lowercase directories (e.g., 'python', 'c++')
+                print(f"Loading {lang} from The Stack...")
                 ds = load_dataset(
                     "bigcode/the-stack-smol", 
                     data_dir=f"data/{lang.lower()}", 
                     split="train", 
                     trust_remote_code=True
                 )
-                self.data[lang] = ds["content"]
-                print(f"Loaded {len(self.data[lang])} examples for {lang}")
+                self.data[lang] = list(ds["content"])
+                print(f"Successfully loaded {len(self.data[lang])} examples for {lang}")
             except Exception as e:
                 print(f"Failed to load {lang}: {e}")
                 self.data[lang] = []
 
     def sample_batch(self, lang: str, batch_size: int):
         lang_data = self.data.get(lang, [])
-        if not lang_data:
+        if not lang_data or len(lang_data) == 0:
             return [""] * batch_size
-        return random.sample(lang_data, min(batch_size, len(lang_data)))
+        
+        # Avoid sampling more than available
+        size = min(batch_size, len(lang_data))
+        return random.sample(lang_data, size)
