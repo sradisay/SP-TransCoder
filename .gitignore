@@ -1,0 +1,3 @@
+*.sh
+data/
+__pycache__/
