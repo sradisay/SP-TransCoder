@@ -9,7 +9,14 @@
 #SBATCH --output=logs/translate.log
 #SBATCH --error=logs/translate.err
 
-eval "$(/opt/apps/miniconda3/24.9.2/bin/conda shell.bash hook)"
+# eval "$(/opt/apps/miniconda3/24.9.2/bin/conda shell.bash hook)"
+eval "$(/pkg/anaconda3/2025.06/bin/conda shell.bash hook)"
 conda activate tdmpc2
+
+export HF_HOME=/scratch/$USER/hf_home
+export HF_DATASETS_CACHE=/scratch/$USER/hf_cache
+mkdir -p $HF_HOME $HF_DATASETS_CACHE
+
+nvidia-smi
 
 python main.py

@@ -34,9 +34,7 @@ def main():
             
             if batch[0]: # Ensure batch isn't empty
                 total_loss += trainer.train_dae_step(batch, lang)
-            if i % 10:
-                print(f"DAE Epoch {epoch+1}/{CONFIG['dae_epochs']} | Step {i+1}/{CONFIG['steps_per_epoch']} | Current Loss: {total_loss/(i+1):.4f}", end="\r")
-                
+ 
         avg_loss = total_loss / CONFIG["steps_per_epoch"]
         print(f"DAE Epoch {epoch+1}/{CONFIG['dae_epochs']} | Avg Loss: {avg_loss:.4f}")
 
