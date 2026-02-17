@@ -60,23 +60,34 @@ class BackTranslator:
         self.model.eval()
         inputs = self._tokenize(sources, src_lang, tgt_lang)
         
-        # We sample during back-translation to increase synthetic data diversity
+        # FIX 2: Lower temperature slightly to prevent generating complete garbage, 
+        # but keep sampling to prevent deterministic copying.
         generated_ids = self.model.generate(
-            **inputs, max_length=self.cfg["max_len"], 
-            do_sample=True, temperature=0.7, top_p=0.9
+            **inputs, 
+            max_length=self.cfg["max_len"], 
+            do_sample=True, 
+            temperature=0.6, 
+            top_p=0.9,
+            repetition_penalty=1.2 # Helps prevent repeating the input exactly
         )
         return self.tokenizer.batch_decode(generated_ids, skip_special_tokens=True)
 
     def train_bt_step(self, src_examples, src_lang, tgt_lang):
         """Iterative Back-Translation step: Target to Source."""
-        # 1. Generate Fake Targets (e.g. Real Python -> Fake C++)
+        # 1. Generate Fake Targets (e.g., Real Python -> Fake C++)
         pseudo_targets = self.generate_pseudo_targets(src_examples, src_lang, tgt_lang)
         
-        # 2. Train model to reconstruct Real Source (e.g. Fake C++ -> Real Python)
+        # FIX 3: THE ANTI-COPYING TRAP (Noisy BT)
+        # We MUST corrupt the synthetic data. If the model generated pure Python 
+        # instead of C++, the noise forces it to reconstruct the source rather 
+        # than blindly copying.
+        noisy_pseudo_targets = self.corruptor.corrupt_batch(pseudo_targets)
+        
+        # 2. Train model to reconstruct Real Source (e.g., Noisy Fake C++ -> Real Python)
         self.model.train()
         self.optimizer.zero_grad()
         
-        inputs = self._tokenize(pseudo_targets, tgt_lang, src_lang)
+        inputs = self._tokenize(noisy_pseudo_targets, tgt_lang, src_lang)
         labels = self._get_labels(src_examples)
         
         with autocast(self.device.type):
