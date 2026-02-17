@@ -1,13 +1,13 @@
 import torch
-from transformers import AutoModelForSeq2SeqLM, AddedToken
-from tokenizer.apply_tokenizer import salesforce_tokenizer
+from transformers import AutoModelForSeq2SeqLM, AddedToken, AutoTokenizer
+
 
 class BackTranslator:
     def __init__(self, config):
         self.cfg = config
 
         # Load fast tokenizer and model
-        self.tokenizer = salesforce_tokenizer
+        self.tokenizer = AutoTokenizer.from_pretrained(config["model_name"])
         self.model = AutoModelForSeq2SeqLM.from_pretrained(config["model_name"])
 
         # Register special tokens safely with fast tokenizer
