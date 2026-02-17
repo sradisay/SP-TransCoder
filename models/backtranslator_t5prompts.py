@@ -1,8 +1,7 @@
 import torch
 from torch.amp import GradScaler, autocast
-from transformers import T5ForConditionalGeneration
+from transformers import T5ForConditionalGeneration, AutoTokenizer
 from typing import List, Dict
-from tokenizer.apply_tokenizer import salesforce_tokenizer
 
 
 class BackTranslationTrainer:
@@ -10,7 +9,7 @@ class BackTranslationTrainer:
         self.config = config
         self.device = config["device"]
         self.model = model.to(self.device)
-        self.tokenizer = salesforce_tokenizer
+        self.tokenizer = AutoTokenizer.from_pretrained(config["model_name"])
 
         # Optimization tools
         self.optimizer = torch.optim.AdamW(self.model.parameters(), lr=config["lr"])
@@ -22,8 +21,8 @@ class BackTranslationTrainer:
         self.micro_batch_size = 64
         self.accumulation_steps = config["batch_size"] // self.micro_batch_size
 
-    def _prepare_inputs(self, source_texts: List[str], target_lang: str):
-        prefix = f"translate {target_lang} to {target_lang}: "
+    def _prepare_inputs(self, source_texts: List[str], source_lang: str, target_lang: str):
+        prefix = f"Translate {source_lang} to {target_lang}: "
         inputs = [prefix + text for text in source_texts]
 
         return self.tokenizer(
@@ -35,9 +34,10 @@ class BackTranslationTrainer:
         ).to(self.model.device)
 
     @torch.no_grad()
-    def generate_synthetic_batch(self, source_code: List[str], target_lang: str) -> List[str]:
+    def generate_synthetic_batch(self, source_code: List[str], source_lang: str, target_lang: str) -> List[str]:
+        """Step 1: Forward translation (Noisy generation)"""
         self.model.eval()
-        inputs = self._prepare_inputs(source_code, target_lang)
+        inputs = self._prepare_inputs(source_code, source_lang, target_lang)
 
         generated_ids = self.model.generate(
             inputs["input_ids"],
@@ -94,12 +94,11 @@ class BackTranslationTrainer:
         steps_per_epoch = 100
 
         for step in range(steps_per_epoch):
-            for i, lang in enumerate(langs):
+            for i, source_lang in enumerate(langs):
                 target_lang = langs[(i + 1) % len(langs)]
 
-                real_source_batch = dataset.sample_batch(lang, self.micro_batch_size)
-
-                synthetic_target_batch = self.generate_synthetic_batch(real_source_batch, target_lang)
+                real_source_batch = dataset.sample_batch(source_lang, self.micro_batch_size)
+                synthetic_target_batch = self.generate_synthetic_batch(real_source_batch, source_lang, target_lang)
 
                 loss_val = self.train_on_batch(synthetic_target_batch, real_source_batch)
                 total_loss += loss_val
