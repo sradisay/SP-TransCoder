@@ -19,4 +19,5 @@ mkdir -p $HF_HOME $HF_DATASETS_CACHE
 
 nvidia-smi
 
+export PYTHONUNBUFFERED=1
 python main.py

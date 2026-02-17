@@ -16,11 +16,11 @@ class UnpairedCodeDataset:
                     trust_remote_code=True
                 )
                 
-                # FIX 1: Filter out license headers and comment-only files
                 valid_examples = []
                 for content in ds["content"]:
-                    if self._is_valid_code(content, lang):
-                        valid_examples.append(content)
+                    clean_content = self._strip_headers(content)
+                    if self._is_valid_code(clean_content, lang):
+                        valid_examples.append(clean_content)
                         
                 self.data[lang] = valid_examples
                 print(f"Successfully loaded {len(self.data[lang])} VALID code examples for {lang}")
@@ -28,21 +28,27 @@ class UnpairedCodeDataset:
                 print(f"Failed to load {lang}: {e}")
                 self.data[lang] = []
 
+    def _strip_headers(self, text):
+        """Removes top-of-file comments, licenses, and empty lines."""
+        lines = text.split('\n')
+        start_idx = 0
+        for i, line in enumerate(lines):
+            stripped = line.strip()
+            # Skip empty lines, comments, and basic imports
+            if stripped and not stripped.startswith(('#', '//', '/*', '*', '"""', "'''", 'import ', 'from ', '#include')):
+                start_idx = i
+                break
+        return '\n'.join(lines[start_idx:])
+
     def _is_valid_code(self, text, lang):
-        """Filters out files that are mostly comments, licenses, or too short."""
-        if not text or len(text) < 30: 
+        """Ensures the remaining chunk actually contains structural logic."""
+        if not text or len(text) < 50: 
             return False
             
-        # Strip out common comment lines to see what's left
-        lines = text.split('\n')
-        code_lines = [l for l in lines if not l.strip().startswith(('#', '//', '*', '/*'))]
-        clean_text = '\n'.join(code_lines)
-        
-        # Enforce language-specific structural keywords
         if lang == "Python":
-            return any(kw in clean_text for kw in ["def ", "class ", "import ", "from "])
+            return any(kw in text for kw in ["def ", "class ", "return ", "for "])
         elif lang == "C++":
-            return any(kw in clean_text for kw in ["#include", "int ", "void ", "std::", "class "])
+            return any(kw in text for kw in ["int ", "void ", "class ", "return ", "for ("])
         return True
 
     def sample_batch(self, lang: str, batch_size: int):
