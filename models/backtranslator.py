@@ -60,15 +60,11 @@ class BackTranslator:
         self.model.eval()
         inputs = self._tokenize(sources, src_lang, tgt_lang)
         
-        # FIX 2: Lower temperature slightly to prevent generating complete garbage, 
-        # but keep sampling to prevent deterministic copying.
         generated_ids = self.model.generate(
             **inputs, 
             max_length=self.cfg["max_len"], 
-            do_sample=True, 
-            temperature=0.6, 
-            top_p=0.9,
-            repetition_penalty=1.2 # Helps prevent repeating the input exactly
+            num_beams=1, 
+            do_sample=False
         )
         return self.tokenizer.batch_decode(generated_ids, skip_special_tokens=True)
 
