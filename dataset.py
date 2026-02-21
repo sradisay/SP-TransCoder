@@ -1,6 +1,8 @@
 from datasets import load_dataset
 import random
 import json
+import re
+import os
 
 class UnpairedCodeDataset:
     def __init__(self, languages=["python", "c++"]):
@@ -50,6 +52,83 @@ class PairedCodeDataset:
                     "c++": "int add(int a, int b) {\n    return a + b;\n}"
                 }
             ]
+
+    def sample_paired_batch(self, batch_size):
+        if not self.pairs:
+            return [""] * batch_size, [""] * batch_size
+
+        batch = random.sample(self.pairs, min(batch_size, len(self.pairs)))
+
+        py_batch = [item["python"] for item in batch]
+        cpp_batch = [item["c++"] for item in batch]
+
+        return py_batch, cpp_batch
+
+
+class XLCoSTSnippetDataset:
+    def __init__(self, base_dir="data/pair_data_tok_1/C++-Python/"):
+        self.pairs = []
+
+        py_path = os.path.join(base_dir, "train-C++-Python-tok.py")
+        cpp_path = os.path.join(base_dir, "train-C++-Python-tok.cpp")
+
+        print(f"Loading and decoding paired data from:\n- {py_path}\n- {cpp_path}")
+
+        try:
+            with open(py_path, 'r', encoding='utf-8') as f_py, \
+                    open(cpp_path, 'r', encoding='utf-8') as f_cpp:
+
+                for py_line, cpp_line in zip(f_py, f_cpp):
+                    py_code = self._decode_and_clean(py_line)
+                    cpp_code = self._decode_and_clean(cpp_line)
+
+                    if py_code and cpp_code:
+                        self.pairs.append({
+                            "python": py_code,
+                            "c++": cpp_code
+                        })
+
+            print(f"Successfully loaded and decoded {len(self.pairs)} snippet pairs!")
+
+        except FileNotFoundError as e:
+            print(f"Error: Could not find the dataset files. {e}")
+            self.pairs = [
+                {
+                    "python": "def add(a, b):\n    return a + b",
+                    "c++": "int add(int a, int b) {\n    return a + b;\n}"
+                }
+            ]
+
+    def _decode_and_clean(self, code_string):
+        tokens = code_string.split()
+        decoded_chars = []
+        indent_level = 0
+        is_new_line = True
+
+        for token in tokens:
+            if token == 'NEW_LINE':
+                decoded_chars.append('\n')
+                is_new_line = True
+            elif token == 'INDENT':
+                indent_level += 1
+            elif token == 'DEDENT':
+                indent_level = max(0, indent_level - 1)
+            else:
+                if is_new_line:
+                    decoded_chars.append('    ' * indent_level)
+                    is_new_line = False
+                elif decoded_chars and decoded_chars[-1] != '\n':
+                    decoded_chars.append(' ')
+                decoded_chars.append(token)
+
+        raw_decoded_string = "".join(decoded_chars).strip()
+
+        cleaned_string = re.sub(r'\s+([,.:;\]\)\}])', r'\1', raw_decoded_string)
+        cleaned_string = re.sub(r'([\[\(\{])\s+', r'\1', cleaned_string)
+        cleaned_string = re.sub(r'\+\s+\+', '++', cleaned_string)
+        cleaned_string = re.sub(r'-\s+-', '--', cleaned_string)
+
+        return cleaned_string.strip()
 
     def sample_paired_batch(self, batch_size):
         if not self.pairs:

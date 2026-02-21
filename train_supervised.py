@@ -1,6 +1,6 @@
 import torch
 from transformers import T5ForConditionalGeneration, AutoTokenizer
-from dataset import PairedCodeDataset
+from dataset import PairedCodeDataset, XLCoSTSnippetDataset
 from models.supervised_trainer import SupervisedTranslationTrainer
 
 CONFIG = {
@@ -16,7 +16,7 @@ CONFIG = {
 
 def main():
     print(f"Using device: {CONFIG['device']}")
-    dataset = PairedCodeDataset("data/codenet_paired_50k.json")
+    dataset = XLCoSTSnippetDataset()
 
     print(f"Loading {CONFIG['model_name']}...")
     model = T5ForConditionalGeneration.from_pretrained(CONFIG["model_name"])
@@ -27,7 +27,7 @@ def main():
     for epoch in range(CONFIG["epochs"]):
         trainer.run_epoch(dataset, epoch)
 
-        save_path = f"./checkpoints/codet5_supervised_epoch_{epoch}"
+        save_path = f"./checkpoints/codet5_supervised_snippets_epoch_{epoch}"
         print(f"Saving checkpoint to {save_path}...")
         model.save_pretrained(save_path)
         tokenizer.save_pretrained(save_path)
