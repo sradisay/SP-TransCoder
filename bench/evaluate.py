@@ -11,7 +11,6 @@ CONFIG = {
     "test_dir": "./data/pair_data_tok_1/C++-Python/",
     "max_len": 256,
     "device": torch.device("cuda" if torch.cuda.is_available() else "cpu"),
-    "num_samples": 500,
     "batch_size": 16
 }
 
@@ -75,7 +74,7 @@ def load_test_data(source_lang, target_lang, limit=None):
     return sources, references
 
 
-def main(model_name, tokenizer_name, cache_file, source_lang, target_lang):
+def main(model_name, tokenizer_name, cache_file, source_lang, target_lang, num_samples):
     if os.path.exists(cache_file):
         print(f"Loading cached predictions from {cache_file}...")
         with open(cache_file, "r", encoding="utf-8") as f:
@@ -89,7 +88,7 @@ def main(model_name, tokenizer_name, cache_file, source_lang, target_lang):
         print(f"Loading tokenizer from {tokenizer_name}...")
         tokenizer = AutoTokenizer.from_pretrained(tokenizer_name)
 
-        sources, references = load_test_data(source_lang, target_lang, limit=CONFIG["num_samples"])
+        sources, references = load_test_data(source_lang, target_lang, limit=num_samples)
         predictions = []
         batch_size = CONFIG["batch_size"]
 
@@ -186,6 +185,14 @@ if __name__ == "__main__":
         help="The target programming language."
     )
 
+    parser.add_argument(
+        "--num_samples",
+        type=int,
+        required=False,
+        default=None,
+        help="Number of samples to evaluate. Default: evaluates the entire dataset."
+    )
+
     args = parser.parse_args()
 
     final_tokenizer_name = args.t if args.t else args.m
@@ -193,4 +200,4 @@ if __name__ == "__main__":
     if not args.c:
         args.c = f"predictions_cache_{args.source}2{args.target}.json"
 
-    main(args.m, final_tokenizer_name, args.c, args.source, args.target)
+    main(args.m, final_tokenizer_name, args.c, args.source, args.target, args.num_samples)
