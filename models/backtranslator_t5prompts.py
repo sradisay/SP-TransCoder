@@ -11,11 +11,9 @@ class BackTranslationTrainer:
         self.model = model.to(self.device)
         self.tokenizer = AutoTokenizer.from_pretrained(config["model_name"])
 
-        # Optimization tools
         self.optimizer = torch.optim.AdamW(self.model.parameters(), lr=config["lr"])
-        self.scaler = GradScaler('cuda') # floating point optimization
+        self.scaler = GradScaler('cuda')
 
-        # Enable Gradient Checkpointing to save memory at the cost of speed
         self.model.gradient_checkpointing_enable()
 
         self.micro_batch_size = 64
@@ -43,22 +41,16 @@ class BackTranslationTrainer:
             inputs["input_ids"],
             attention_mask=inputs["attention_mask"],
             max_length=self.config["max_len"],
-            num_beams=1,  # TODO: compare num_beams 1 with num_beams 2
-            do_sample=False
+            temperature=0.7,
+            do_sample=True
         )
 
         return self.tokenizer.batch_decode(generated_ids, skip_special_tokens=True)
 
-    def train_on_batch(self, synthetic_code: List[str], original_code: List[str]):
+    def train_on_batch(self, synthetic_code: List[str], original_code: List[str], synthetic_lang: str, original_lang: str):
         self.model.train()
 
-        inputs = self.tokenizer(
-            synthetic_code,
-            padding="max_length",
-            truncation=True,
-            max_length=self.config["max_len"],
-            return_tensors="pt"
-        ).to(self.device)
+        inputs = self._prepare_inputs(synthetic_code, synthetic_lang, original_lang)
 
         labels = self.tokenizer(
             original_code,
@@ -67,11 +59,9 @@ class BackTranslationTrainer:
             max_length=self.config["max_len"],
             return_tensors="pt"
         ).input_ids.to(self.device)
-
-        # Replace padding token id with -100 so it's ignored in loss calculation
         labels[labels == self.tokenizer.pad_token_id] = -100
 
-        with autocast('cuda'):  # TODO: remove and check difference
+        with autocast('cuda'):
             outputs = self.model(
                 input_ids=inputs["input_ids"],
                 attention_mask=inputs["attention_mask"],
@@ -100,7 +90,12 @@ class BackTranslationTrainer:
                 real_source_batch = dataset.sample_batch(source_lang, self.micro_batch_size)
                 synthetic_target_batch = self.generate_synthetic_batch(real_source_batch, source_lang, target_lang)
 
-                loss_val = self.train_on_batch(synthetic_target_batch, real_source_batch)
+                loss_val = self.train_on_batch(
+                    synthetic_code=synthetic_target_batch,
+                    original_code=real_source_batch,
+                    synthetic_lang=target_lang,
+                    original_lang=source_lang
+                )
                 total_loss += loss_val
 
             if (step + 1) % self.accumulation_steps == 0:
