@@ -17,8 +17,8 @@ CONFIG = {
     "weight_decay": 0.01,        
     "warmup_steps": 1000,         
     "device": torch.device("cuda" if torch.cuda.is_available() else "cpu"),
-    "dae_ckpt_dir": "checkpoints/codet5_dae_base",
-    "bt_ckpt_dir": "checkpoints/codet5_bt_final"
+    "dae_ckpt": "checkpoints/codet5_dae_base",
+    "bt_ckpt": "checkpoints/codet5_bt_final"
 }
 
 def run_inference(trainer, dataset, num_examples=3):
@@ -53,11 +53,11 @@ def main():
     trainer = BackTranslator(CONFIG)
     
     # --- Phase 1: Denoising Auto-Encoding (DOBF) ---
-    if os.path.exists(CONFIG["dae_ckpt_dir"]):
-        print(f"\n[INFO] Found existing DAE checkpoint at '{CONFIG['dae_ckpt_dir']}'.")
+    if os.path.exists(CONFIG["dae_ckpt"]):
+        print(f"\n[INFO] Found existing DAE checkpoint at '{CONFIG['dae_ckpt']}'.")
         print("[INFO] Skipping Phase 1 and loading pre-trained DAE weights...")
         
-        trainer.model = T5ForConditionalGeneration.from_pretrained(CONFIG["dae_ckpt_dir"]).to(CONFIG["device"])
+        trainer.model = T5ForConditionalGeneration.from_pretrained(CONFIG["dae_ckpt"]).to(CONFIG["device"])
     else:
         print("\n--- Phase 1: Denoising Auto-Encoding (DOBF) ---")
         for epoch in range(CONFIG["dae_epochs"]):
@@ -72,9 +72,9 @@ def main():
         print("\n[Running Baseline Inference after DAE Phase]")
         run_inference(trainer, dataset)
         
-        print(f"\nSaving DAE checkpoint to '{CONFIG['dae_ckpt_dir']}'...")
-        trainer.model.save_pretrained(CONFIG["dae_ckpt_dir"])
-        trainer.tokenizer.save_pretrained(CONFIG["dae_ckpt_dir"])
+        print(f"\nSaving DAE checkpoint to '{CONFIG['dae_ckpt']}'...")
+        trainer.model.save_pretrained(CONFIG["dae_ckpt"])
+        trainer.tokenizer.save_pretrained(CONFIG["dae_ckpt"])
 
     # --- Phase 2: Alternating DAE + BT ---
     print("\n--- Phase 2: Alternating DAE + BT ---")
@@ -98,9 +98,9 @@ def main():
         print(f"Epoch {epoch+1} | DAE Loss: {dae_loss_total/CONFIG['steps_per_epoch']:.4f} | BT Loss: {bt_loss_total/CONFIG['steps_per_epoch']:.4f}")
         run_inference(trainer, dataset)
 
-    print(f"\nSaving final BT checkpoint to '{CONFIG['bt_ckpt_dir']}'...")
-    trainer.model.save_pretrained(CONFIG["bt_ckpt_dir"])
-    trainer.tokenizer.save_pretrained(CONFIG["bt_ckpt_dir"])
+    print(f"\nSaving final BT checkpoint to '{CONFIG['bt_ckpt']}'...")
+    trainer.model.save_pretrained(CONFIG["bt_ckpt"])
+    trainer.tokenizer.save_pretrained(CONFIG["bt_ckpt"])
 
 if __name__ == "__main__":
     main()
