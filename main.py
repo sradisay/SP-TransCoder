@@ -7,7 +7,7 @@ from models.backtranslator import BackTranslator
 CONFIG = {
     "model_name": "Salesforce/codet5-small",
     "langs": ["Python", "C++"],
-    "batch_size": 32,             # Passed directly to DataLoader now
+    "batch_size": 32,
     "dae_epochs": 10,             
     "bt_epochs": 20,
     "steps_per_epoch": 200,
@@ -37,7 +37,6 @@ def run_inference(trainer, dataset, num_examples=3):
 
 def main():
     print(f"Starting pipeline on {CONFIG['device']}...")
-    # FIX: Pass the batch_size to the DataLoader
     dataset = UnpairedCodeDataset(languages=CONFIG["langs"], batch_size=CONFIG["batch_size"])
     trainer = BackTranslator(CONFIG)
     os.makedirs("checkpoints", exist_ok=True)
@@ -47,7 +46,6 @@ def main():
         total_loss = 0
         for _ in range(CONFIG["steps_per_epoch"]):
             lang = random.choice(CONFIG["langs"])
-            # FIX: We don't pass CONFIG["batch_size"] here anymore. The DataLoader handles it.
             batch = dataset.sample_batch(lang)
             if batch:
                 total_loss += trainer.train_dae_step(batch, lang)
@@ -72,8 +70,6 @@ def main():
                 bt_loss_total += trainer.train_bt_step(bt_batch, src, tgt)
         
         print(f"Epoch {epoch+1} | DAE Loss: {dae_loss_total/CONFIG['steps_per_epoch']:.4f} | BT Loss: {bt_loss_total/CONFIG['steps_per_epoch']:.4f}")
-        
-        # Optional: Run inference every epoch to monitor progress
         run_inference(trainer, dataset)
 
 if __name__ == "__main__":

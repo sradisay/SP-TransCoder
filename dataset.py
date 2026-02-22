@@ -4,10 +4,6 @@ from datasets import load_dataset
 from torch.utils.data import DataLoader
 
 class InfiniteDataLoader:
-    """
-    Idiomatic PyTorch wrapper to yield batches infinitely using a generator.
-    Avoids try/except overhead and cleanly integrates with persistent workers.
-    """
     def __init__(self, dataloader):
         self.dataloader = dataloader
         self.iterator = self._infinite_generator()
@@ -39,8 +35,6 @@ class UnpairedCodeDataset:
                     trust_remote_code=True
                 )
                 
-                # 1. ONE-TO-MANY MULTIPROCESSING
-                # We strip, chunk, and filter in a single pass.
                 def process_and_chunk(batch):
                     valid_chunks = []
                     
@@ -48,7 +42,7 @@ class UnpairedCodeDataset:
                         # Strip headers
                         clean_content = self._strip_headers(content)
                         
-                        # Fix: LINE-BASED CHUNKING to preserve syntax boundaries
+                        # Line-based chunking to preserve syntax boundaries
                         lines = clean_content.split('\n')
                         chunk_size_lines = 50 # roughly 1000-1500 characters depending on code density
                         
@@ -76,7 +70,6 @@ class UnpairedCodeDataset:
                 
                 print(f"Successfully processed {len(final_ds)} VALID chunks for {lang}")
                 
-                # 2. CREATE HIGH-PERFORMANCE DATALOADERS (Fixed Worker Logic)
                 num_workers = min(4, max(0, self.num_proc // len(languages))) # Allow 0 for local testing
                 
                 dl = DataLoader(
@@ -84,25 +77,14 @@ class UnpairedCodeDataset:
                     batch_size=batch_size, 
                     shuffle=True, 
                     num_workers=num_workers,
-                    # FIX: Conditionally apply multi-processing args to prevent crashes
                     prefetch_factor=4 if num_workers > 0 else None,               
                     persistent_workers=True if num_workers > 0 else False,         
                     pin_memory=False,                
                     drop_last=True     
                 )
 
-                # Apply map function across multiple CPU cores
-                final_ds = ds.map(
-                    process_and_chunk, 
-                    batched=True, 
-                    num_proc=self.num_proc,
-                    desc=f"Processing {lang} files",
-                    remove_columns=ds.column_names # Drop old raw columns to save RAM
-                ).with_format("python")
-                
                 print(f"Successfully processed {len(final_ds)} VALID chunks for {lang}")
                 
-                # 2. CREATE HIGH-PERFORMANCE DATALOADERS
                 num_workers = min(4, max(1, self.num_proc // len(languages))) 
                 
                 dl = DataLoader(
@@ -110,9 +92,9 @@ class UnpairedCodeDataset:
                     batch_size=batch_size, 
                     shuffle=True, 
                     num_workers=num_workers,
-                    prefetch_factor=4,               # Increased since we have 64GB RAM
-                    persistent_workers=True,         # CRITICAL: Keeps workers alive across epochs!
-                    pin_memory=False,                # Strings cannot be pinned
+                    prefetch_factor=4,
+                    persistent_workers=True,
+                    pin_memory=False, # strings cannot be pinned
                     drop_last=True     
                 )
                 
@@ -122,11 +104,9 @@ class UnpairedCodeDataset:
                 print(f"Failed to load {lang}: {e}")
 
     def sample_batch(self, lang: str, limit: int | None = None):
-        """Fetches instantly from the background RAM cache."""
         if lang not in self.dataloaders:
             raise ValueError(f"Language {lang} not loaded.")
         
-        # Fetch pre-batched list of strings
         strings = self.dataloaders[lang].next_batch()["clean_content"]
         
         if limit is not None:

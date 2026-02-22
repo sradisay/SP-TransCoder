@@ -12,9 +12,6 @@ class BackTranslator:
         self.tokenizer = AutoTokenizer.from_pretrained(config["model_name"])
         self.model = T5ForConditionalGeneration.from_pretrained(config["model_name"]).to(self.device)
         
-        # Note: gradient_checkpointing_enable() has been REMOVED to fully utilize your 32GB VRAM.
-        
-        # Best Practice: Exclude biases and LayerNorm from weight decay
         no_decay = ['bias', 'LayerNorm.weight']
         optimizer_grouped_parameters = [
             {'params': [p for n, p in self.model.named_parameters() if not any(nd in n for nd in no_decay)], 
@@ -27,7 +24,6 @@ class BackTranslator:
         
         total_steps = (config["dae_epochs"] + config["bt_epochs"]) * config["steps_per_epoch"]
         
-        # Cosine scheduling provides a smoother convergence for unsupervised generation
         self.scheduler = get_cosine_schedule_with_warmup(
             self.optimizer, 
             num_warmup_steps=config["warmup_steps"], 
@@ -58,7 +54,6 @@ class BackTranslator:
         self.optimizer.step()
         self.scheduler.step()
         
-        # set_to_none=True slightly improves memory tracking overhead
         self.optimizer.zero_grad(set_to_none=True)
 
     def train_dae_step(self, real_codes, lang):
@@ -80,7 +75,6 @@ class BackTranslator:
         inputs = self._tokenize(sources, src_lang, tgt_lang)
         
         with autocast(device_type=self.device.type, dtype=torch.bfloat16):
-            # use_cache=True remains as it greatly accelerates auto-regressive decoding
             generated_ids = self.model.generate(
                 **inputs, 
                 max_length=self.cfg["max_len"], 
