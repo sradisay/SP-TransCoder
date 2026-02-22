@@ -21,9 +21,10 @@ class UnpairedCodeDataset:
         self.langs = languages
         self.dataloaders = {}
         
-        # SLURM automatically provisions this env var.
         self.num_proc = int(os.environ.get("SLURM_CPUS_PER_TASK", multiprocessing.cpu_count()))
         print(f"Dataset using {self.num_proc} CPU workers for preprocessing.")
+        
+        processed_datasets = {}
         
         for lang in languages:
             try:
@@ -35,31 +36,26 @@ class UnpairedCodeDataset:
                     trust_remote_code=True
                 )
                 
-                def process_and_chunk(batch):
+                def process_and_chunk(batch, current_lang=lang):
                     valid_chunks = []
                     
                     for content in batch["content"]:
-                        # Strip headers
                         clean_content = self._strip_headers(content)
                         
-                        # Line-based chunking to preserve syntax boundaries
                         lines = clean_content.split('\n')
-                        chunk_size_lines = 50 # roughly 1000-1500 characters depending on code density
+                        chunk_size_lines = 50 
                         
-                        # Group lines into chunks
                         chunks = [
                             '\n'.join(lines[i:i + chunk_size_lines]) 
                             for i in range(0, len(lines), chunk_size_lines)
                         ]
                         
-                        # Filtering
                         for chunk in chunks:
-                            if self._is_valid_code(chunk, lang):
+                            if self._is_valid_code(chunk, current_lang):
                                 valid_chunks.append(chunk)
                                 
                     return {"clean_content": valid_chunks}
 
-                # Apply map function across multiple CPU cores
                 final_ds = ds.map(
                     process_and_chunk, 
                     batched=True, 
@@ -69,41 +65,31 @@ class UnpairedCodeDataset:
                 ).with_format("python")
                 
                 print(f"Successfully processed {len(final_ds)} VALID chunks for {lang}")
+                processed_datasets[lang] = final_ds
                 
-                num_workers = min(4, max(0, self.num_proc // len(languages))) # Allow 0 for local testing
-                
-                dl = DataLoader(
-                    final_ds, # type: ignore
-                    batch_size=batch_size, 
-                    shuffle=True, 
-                    num_workers=num_workers,
-                    prefetch_factor=4 if num_workers > 0 else None,               
-                    persistent_workers=True if num_workers > 0 else False,         
-                    pin_memory=False,                
-                    drop_last=True     
-                )
+            except Exception as e:
+                print(f"Failed to process {lang}: {e}")
 
-                print(f"Successfully processed {len(final_ds)} VALID chunks for {lang}")
-                
-                num_workers = min(4, max(1, self.num_proc // len(languages))) 
-                
+        num_workers = min(4, max(0, self.num_proc // len(languages))) 
+        
+        for lang, final_ds in processed_datasets.items():
+            try:
                 dl = DataLoader(
                     final_ds, # type: ignore
                     batch_size=batch_size, 
                     shuffle=True, 
                     num_workers=num_workers,
-                    prefetch_factor=4,
-                    persistent_workers=True,
-                    pin_memory=False, # strings cannot be pinned
+                    prefetch_factor=4 if num_workers > 0 else None,                
+                    persistent_workers=True if num_workers > 0 else False,          
+                    pin_memory=False,                
                     drop_last=True     
                 )
                 
                 self.dataloaders[lang] = InfiniteDataLoader(dl)
-                
             except Exception as e:
-                print(f"Failed to load {lang}: {e}")
+                print(f"Failed to create DataLoader for {lang}: {e}")
 
-    def sample_batch(self, lang: str, limit: int | None = None):
+    def sample_batch(self, lang: str, limit: int = None):
         if lang not in self.dataloaders:
             raise ValueError(f"Language {lang} not loaded.")
         

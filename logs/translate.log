@@ -1,0 +1,42 @@
+Sat Feb 21 20:36:34 2026       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 580.82.07              Driver Version: 580.82.07      CUDA Version: 13.0     |
++-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA A100 80GB PCIe          On  |   00000000:17:00.0 Off |                    0 |
+| N/A   56C    P0             57W /  300W |       0MiB /  81920MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|  No running processes found                                                             |
++-----------------------------------------------------------------------------------------+
+Starting pipeline on cuda...
+Dataset using 16 CPU workers for preprocessing.
+
+Loading Python from The Stack...
+Successfully processed 40910 VALID chunks for Python
+
+Loading C++ from The Stack...
+Successfully processed 71903 VALID chunks for C++
+
+--- Phase 1: Denoising Auto-Encoding (DOBF) ---
+DAE Epoch 1/10 | Avg Loss: 2.8022
+DAE Epoch 2/10 | Avg Loss: 1.3115
+DAE Epoch 3/10 | Avg Loss: 1.0855
+DAE Epoch 4/10 | Avg Loss: 0.9823
+DAE Epoch 5/10 | Avg Loss: 0.8959
+DAE Epoch 6/10 | Avg Loss: 0.8476
+DAE Epoch 7/10 | Avg Loss: 0.8109
+DAE Epoch 8/10 | Avg Loss: 0.7873
+DAE Epoch 9/10 | Avg Loss: 0.7666
+DAE Epoch 10/10 | Avg Loss: 0.7429
+
+--- Phase 2: Alternating DAE + BT ---

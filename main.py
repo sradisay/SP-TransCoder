@@ -8,7 +8,7 @@ CONFIG = {
     "model_name": "Salesforce/codet5-small",
     "langs": ["Python", "C++"],
     "batch_size": 32,
-    "dae_epochs": 10,             
+    "dae_epochs": 20,             
     "bt_epochs": 20,
     "steps_per_epoch": 200,
     "lr": 1e-4,
