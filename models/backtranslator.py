@@ -22,7 +22,10 @@ class BackTranslator:
         
         self.optimizer = torch.optim.AdamW(optimizer_grouped_parameters, lr=config["lr"])
         
-        total_steps = (config["dae_epochs"] + config["bt_epochs"]) * config["steps_per_epoch"]
+        dae_steps = config["dae_epochs"] * config["steps_per_epoch"]
+        bt_steps = config["bt_epochs"] * config["steps_per_epoch"] * 2
+        total_steps = dae_steps + bt_steps
+        
         self.scheduler = get_cosine_schedule_with_warmup(
             self.optimizer, 
             num_warmup_steps=config["warmup_steps"], 
@@ -74,13 +77,14 @@ class BackTranslator:
         self.model.eval()
         
         # Prompt: "Translate to C++: [Real Python]"
-        inputs = self._tokenize(sources, tgt_lang=tgt_lang)
+        inputs = self._tokenize(sources, tgt_lang)
         
         with autocast(device_type=self.device.type, dtype=torch.bfloat16):
             generated_ids = self.model.generate(
-                **inputs, 
+                input_ids=inputs["input_ids"],
+                attention_mask=inputs["attention_mask"],
                 max_length=self.cfg["max_len"], 
-                num_beams=1, # Greedy Decoding
+                num_beams=1, 
                 do_sample=False,
                 use_cache=True 
             )
