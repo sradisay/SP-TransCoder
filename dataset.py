@@ -17,65 +17,55 @@ class InfiniteDataLoader:
         return next(self.iterator)
 
 class PairedCodeDataset:
-    def __init__(self, data_dir="./data", batch_size=16, num_problems=2, min_solutions=5000):
-        print(f"\nScanning CodeNet data from {data_dir}...")
+    def __init__(self, data_dir="./data", batch_size=16, limit_pairs=50000):
+        print(f"\nScanning CodeNet data from {data_dir} for up to {limit_pairs} pairs...")
         self.pairs = []
         
         if not os.path.exists(data_dir):
             print(f"Warning: {data_dir} not found. Creating a dummy dataset for testing.")
             self.pairs = [{"python": "def add(a, b):\n    return a + b", "c++": "int add(int a, int b) {\n    return a + b;\n}"}] * 100
         else:
-            # Find all problem subdirectories (e.g., p03497)
+            # Find all problem subdirectories (e.g., p00001, p03497)
             problem_dirs = [d for d in os.listdir(data_dir) if os.path.isdir(os.path.join(data_dir, d))]
+            problem_dirs.sort() # Ensure deterministic loading order
             
-            selected_problems = []
+            problems_used = 0
             
             for p_id in problem_dirs:
+                if len(self.pairs) >= limit_pairs:
+                    break
+                    
                 py_dir = os.path.join(data_dir, p_id, "Python")
                 cpp_dir = os.path.join(data_dir, p_id, "C++")
                 
                 # Check if both language directories exist for this problem
                 if os.path.isdir(py_dir) and os.path.isdir(cpp_dir):
-                    # Get all file paths
                     py_files = [os.path.join(py_dir, f) for f in os.listdir(py_dir) if f.endswith('.py')]
                     cpp_files = [os.path.join(cpp_dir, f) for f in os.listdir(cpp_dir) if f.endswith('.cpp')]
                     
-                    if len(py_files) >= min_solutions and len(cpp_files) >= min_solutions:
-                        selected_problems.append({
-                            "p_id": p_id,
-                            "py_files": py_files,
-                            "cpp_files": cpp_files
-                        })
-                        
-                    if len(selected_problems) == num_problems:
-                        break
-            
-            if not selected_problems:
-                print(f"Warning: Could not find {num_problems} problems with >= {min_solutions} solutions. Using dummy data.")
-                self.pairs = [{"python": "def add(a, b):\n    return a + b", "c++": "int add(int a, int b) {\n    return a + b;\n}"}] * 100
-            else:
-                for prob in selected_problems:
-                    py_files = prob["py_files"]
-                    cpp_files = prob["cpp_files"]
-                    
-                    # Take the minimum to form exact 1-to-1 semantic pairs
                     num_pairs = min(len(py_files), len(cpp_files))
-                    print(f"Problem {prob['p_id']}: Found {len(py_files)} Python & {len(cpp_files)} C++ solutions. Creating {num_pairs} pairs.")
+                    if num_pairs == 0:
+                        continue
+                        
+                    problems_used += 1
                     
                     for i in range(num_pairs):
+                        if len(self.pairs) >= limit_pairs:
+                            break
+                            
                         try:
                             with open(py_files[i], 'r', encoding='utf-8', errors='ignore') as f_py:
                                 py_code = f_py.read().strip()
                             with open(cpp_files[i], 'r', encoding='utf-8', errors='ignore') as f_cpp:
                                 cpp_code = f_cpp.read().strip()
                                 
-                            # Only append if neither file was empty
+                            # Only append if neither file is empty
                             if py_code and cpp_code:
                                 self.pairs.append({"python": py_code, "c++": cpp_code})
-                        except Exception as e:
+                        except Exception:
                             continue
 
-                print(f"Successfully loaded a total of {len(self.pairs)} semantic Python-C++ pairs.")
+            print(f"Successfully loaded {len(self.pairs)} semantic Python-C++ pairs across {problems_used} unique problems.")
 
         # Convert to HuggingFace dataset for fast Arrow-backed dataloader integration
         ds = Dataset.from_list(self.pairs)
