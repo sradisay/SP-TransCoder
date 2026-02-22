@@ -6,3 +6,4 @@ If the dataset is based on a loading script, please ask the dataset author to re
 `trust_remote_code` is not supported anymore.
 Please check that the Hugging Face dataset 'bigcode/the-stack-smol' isn't based on a loading script and remove `trust_remote_code`.
 If the dataset is based on a loading script, please ask the dataset author to remove it and convert it to a standard format like Parquet.
+[2026-02-21T21:05:10.387] error: *** JOB 48698334 ON hpc3-gpu-l54-04 CANCELLED AT 2026-02-21T21:05:10 DUE to SIGNAL Terminated ***

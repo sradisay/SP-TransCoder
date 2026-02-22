@@ -23,16 +23,16 @@ class BackTranslator:
         self.optimizer = torch.optim.AdamW(optimizer_grouped_parameters, lr=config["lr"])
         
         total_steps = (config["dae_epochs"] + config["bt_epochs"]) * config["steps_per_epoch"]
-        
         self.scheduler = get_cosine_schedule_with_warmup(
             self.optimizer, 
             num_warmup_steps=config["warmup_steps"], 
             num_training_steps=total_steps
         )
+        
         self.corruptor = CodeCorruptor()
         
-    def _tokenize(self, texts, src_lang, tgt_lang):
-        prefix = f"Translate {src_lang} to {tgt_lang}: "
+    def _tokenize(self, texts, tgt_lang):
+        prefix = f"Translate to {tgt_lang}: "
         inputs = [prefix + t for t in texts]
         return self.tokenizer(
             inputs, return_tensors="pt", padding=True, 
@@ -53,14 +53,14 @@ class BackTranslator:
         clip_grad_norm_(self.model.parameters(), max_norm=1.0)
         self.optimizer.step()
         self.scheduler.step()
-        
         self.optimizer.zero_grad(set_to_none=True)
 
     def train_dae_step(self, real_codes, lang):
         self.model.train()
         corrupted_codes = self.corruptor.corrupt_batch(real_codes)
         
-        inputs = self._tokenize(corrupted_codes, lang, lang)
+        # Prompt: "Translate to C++: [Noisy C++]" -> Target: "[Clean C++]"
+        inputs = self._tokenize(corrupted_codes, tgt_lang=lang)
         labels = self._get_labels(real_codes)
         
         with autocast(device_type=self.device.type, dtype=torch.bfloat16):
@@ -70,30 +70,34 @@ class BackTranslator:
         return loss.item()
 
     @torch.no_grad()
-    def generate_pseudo_targets(self, sources, src_lang, tgt_lang):
+    def generate_pseudo_targets(self, sources, tgt_lang):
         self.model.eval()
-        inputs = self._tokenize(sources, src_lang, tgt_lang)
+        
+        # Prompt: "Translate to C++: [Real Python]"
+        inputs = self._tokenize(sources, tgt_lang=tgt_lang)
         
         with autocast(device_type=self.device.type, dtype=torch.bfloat16):
             generated_ids = self.model.generate(
                 **inputs, 
                 max_length=self.cfg["max_len"], 
-                num_beams=1, 
+                num_beams=1, # Greedy Decoding
                 do_sample=False,
                 use_cache=True 
             )
         return self.tokenizer.batch_decode(generated_ids, skip_special_tokens=True)
 
     def train_bt_step(self, src_examples, src_lang, tgt_lang):
-        # 1. Generate pseudo-targets (eval mode)
-        pseudo_targets = self.generate_pseudo_targets(src_examples, src_lang, tgt_lang)
+        # 1. Generate Fake Targets (Real Python -> Fake C++)
+        pseudo_targets = self.generate_pseudo_targets(src_examples, tgt_lang=tgt_lang)
         
-        # 2. Add noise to pseudo-targets using BART-style masking
+        # 2. Add BART-style noise to the Fake C++
         noisy_pseudo_targets = self.corruptor.corrupt_batch(pseudo_targets)
         
-        # 3. Train to translate back to source (train mode)
         self.model.train()
-        inputs = self._tokenize(noisy_pseudo_targets, tgt_lang, src_lang)
+        
+        # 3. Train backwards (Noisy Fake C++ -> Real Python)
+        # Prompt: "Translate to Python: [Noisy Fake C++]"
+        inputs = self._tokenize(noisy_pseudo_targets, tgt_lang=src_lang)
         labels = self._get_labels(src_examples)
         
         with autocast(device_type=self.device.type, dtype=torch.bfloat16):

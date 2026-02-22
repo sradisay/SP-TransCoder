@@ -7,8 +7,6 @@ class CodeCorruptor:
         self.drop_prob = drop_prob
         self.mask_prob = mask_prob
         
-        # CodeT5 uses RobertaTokenizer. 
-        # The native mask token is <mask>, not <extra_id_X>.
         self.mask_token = "<mask>" 
 
     def corrupt(self, text: str) -> str:

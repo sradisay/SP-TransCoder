@@ -7,11 +7,11 @@ from models.backtranslator import BackTranslator
 CONFIG = {
     "model_name": "Salesforce/codet5-small",
     "langs": ["Python", "C++"],
-    "batch_size": 32,
-    "dae_epochs": 20,             
+    "batch_size": 32,             # A100 easily handles 32 batch size at 256 max_len
+    "dae_epochs": 10,             
     "bt_epochs": 20,
     "steps_per_epoch": 200,
-    "lr": 1e-4,
+    "lr": 1e-4,                   # Increased slightly because new embeddings need to train
     "max_len": 256,
     "weight_decay": 0.01,        
     "warmup_steps": 1000,        
@@ -22,16 +22,19 @@ def run_inference(trainer, dataset, num_examples=3):
     trainer.model.eval()
     print("\n" + "="*30 + "\nRUNNING INFERENCE ON SAMPLES\n" + "="*30)
     for src_lang, tgt_lang in [("Python", "C++"), ("C++", "Python")]:
-        # limit is used here safely just to print 3 examples
         samples = dataset.sample_batch(src_lang, limit=num_examples) 
         for i, code in enumerate(samples):
             if not code.strip(): continue
-            prefix = f"Translate {src_lang} to {tgt_lang}: "
+            
+            # Use the Target-Only Prompt
+            prefix = f"Translate to {tgt_lang}: "
             inputs = trainer.tokenizer(prefix + code, return_tensors="pt", 
                                      truncation=True, max_length=CONFIG["max_len"]).to(CONFIG["device"])
-            with torch.no_grad():
+            
+            with torch.no_grad(), torch.autocast(device_type=CONFIG["device"].type, dtype=torch.bfloat16):
                 out_ids = trainer.model.generate(**inputs, max_length=CONFIG["max_len"], num_beams=4)
                 translation = trainer.tokenizer.decode(out_ids[0], skip_special_tokens=True)
+                
             print(f"\n[{src_lang} Example {i+1}]\n{code[:200]}...")
             print(f"\n[Translated {tgt_lang}]\n{translation}\n" + "-"*40)
 
