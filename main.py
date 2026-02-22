@@ -21,25 +21,33 @@ CONFIG = {
     "bt_ckpt": "checkpoints/codet5_bt_final"
 }
 
-def run_inference(trainer, dataset, num_examples=3):
+def run_inference(trainer, dataset, device, num_examples=4):
     trainer.model.eval()
     print("\n" + "="*30 + "\nRUNNING INFERENCE ON SAMPLES\n" + "="*30)
+    
     for src_lang, tgt_lang in [("Python", "C++"), ("C++", "Python")]:
         samples = dataset.sample_batch(src_lang, limit=num_examples) 
+        
         for i, code in enumerate(samples):
             if not code.strip(): continue
             
-            prefix = f"Translate to {tgt_lang}: "
-            inputs = trainer.tokenizer(prefix + code, return_tensors="pt", 
-                                     truncation=True, max_length=CONFIG["max_len"]).to(CONFIG["device"])
-            
-            with torch.no_grad(), torch.autocast(device_type=CONFIG["device"].type, dtype=torch.bfloat16):
+            inputs = trainer._tokenize_encoder([code], src_lang)
+            lang_id = trainer.tokenizer.convert_tokens_to_ids(f"<{tgt_lang}>")
+            decoder_input_ids = torch.tensor(
+                [[trainer.tokenizer.pad_token_id, lang_id]], 
+                device=device
+            )
+
+            with torch.no_grad(), torch.autocast(device_type=device.type, dtype=torch.bfloat16):
                 out_ids = trainer.model.generate(
                     input_ids=inputs["input_ids"],
                     attention_mask=inputs["attention_mask"],
-                    max_length=CONFIG["max_len"], 
-                    num_beams=4
+                    decoder_input_ids=decoder_input_ids,
+                    max_length=trainer.cfg["max_len"], 
+                    num_beams=4,
+                    early_stopping=True
                 )
+                
                 translation = trainer.tokenizer.decode(out_ids[0], skip_special_tokens=True)
                 
             print(f"\n[{src_lang} Example {i+1}]\n{code[:200]}...")
@@ -70,7 +78,7 @@ def main():
             print(f"DAE Epoch {epoch+1}/{CONFIG['dae_epochs']} | Avg Loss: {total_loss/CONFIG['steps_per_epoch']:.4f}")
         
         print("\n[Running Baseline Inference after DAE Phase]")
-        run_inference(trainer, dataset)
+        run_inference(trainer, dataset, CONFIG['device'])
         
         print(f"\nSaving DAE checkpoint to '{CONFIG['dae_ckpt']}'...")
         trainer.model.save_pretrained(CONFIG["dae_ckpt"])
@@ -96,7 +104,7 @@ def main():
                 bt_loss_total += trainer.train_bt_step(bt_batch, src, tgt)
         
         print(f"Epoch {epoch+1} | DAE Loss: {dae_loss_total/CONFIG['steps_per_epoch']:.4f} | BT Loss: {bt_loss_total/CONFIG['steps_per_epoch']:.4f}")
-        run_inference(trainer, dataset)
+        run_inference(trainer, dataset, CONFIG['device'])
 
     print(f"\nSaving final BT checkpoint to '{CONFIG['bt_ckpt']}'...")
     trainer.model.save_pretrained(CONFIG["bt_ckpt"])

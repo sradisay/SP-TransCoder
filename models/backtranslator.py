@@ -12,6 +12,11 @@ class BackTranslator:
         self.tokenizer = AutoTokenizer.from_pretrained(config["model_name"])
         self.model = T5ForConditionalGeneration.from_pretrained(config["model_name"]).to(self.device)
         
+        # Add language tokens
+        self.lang_tokens = [f"<{lang}>" for lang in config["langs"]]
+        self.tokenizer.add_special_tokens({"additional_special_tokens": self.lang_tokens})
+        self.model.resize_token_embeddings(len(self.tokenizer))
+        
         no_decay = ['bias', 'LayerNorm.weight']
         optimizer_grouped_parameters = [
             {'params': [p for n, p in self.model.named_parameters() if not any(nd in n for nd in no_decay)], 
@@ -34,22 +39,6 @@ class BackTranslator:
         
         self.corruptor = CodeCorruptor()
         
-    def _tokenize(self, texts, tgt_lang):
-        prefix = f"Translate to {tgt_lang}: "
-        inputs = [prefix + t for t in texts]
-        return self.tokenizer(
-            inputs, return_tensors="pt", padding=True, 
-            truncation=True, max_length=self.cfg["max_len"]
-        ).to(self.device)
-
-    def _get_labels(self, texts):
-        labels = self.tokenizer(
-            texts, return_tensors="pt", padding=True, 
-            truncation=True, max_length=self.cfg["max_len"]
-        ).input_ids.to(self.device)
-        labels[labels == self.tokenizer.pad_token_id] = -100
-        return labels
-
     def _optimize_step(self, loss):
         """Clean optimization step for bfloat16."""
         loss.backward()
@@ -58,13 +47,30 @@ class BackTranslator:
         self.scheduler.step()
         self.optimizer.zero_grad(set_to_none=True)
 
+    def _tokenize_encoder(self, texts, src_lang):
+        """Append source lang to input so encoder knows what it's looking at"""
+        inputs = [f"{t} <{src_lang}>" for t in texts]
+        return self.tokenizer(
+            inputs, return_tensors="pt", padding=True, 
+            truncation=True, max_length=self.cfg["max_len"]
+        ).to(self.device)
+
+    def _get_labels(self, texts, tgt_lang):
+        """Prepend target lang to output. Model MUST predict it first."""
+        labels_text = [f"<{tgt_lang}> {t}" for t in texts]
+        labels = self.tokenizer(
+            labels_text, return_tensors="pt", padding=True, 
+            truncation=True, max_length=self.cfg["max_len"]
+        ).input_ids.to(self.device)
+        labels[labels == self.tokenizer.pad_token_id] = -100
+        return labels
+
     def train_dae_step(self, real_codes, lang):
         self.model.train()
         corrupted_codes = self.corruptor.corrupt_batch(real_codes)
         
-        # Prompt: "Translate to C++: [Noisy C++]" -> Target: "[Clean C++]"
-        inputs = self._tokenize(corrupted_codes, tgt_lang=lang)
-        labels = self._get_labels(real_codes)
+        inputs = self._tokenize_encoder(corrupted_codes, lang)
+        labels = self._get_labels(real_codes, lang)
         
         with autocast(device_type=self.device.type, dtype=torch.bfloat16):
             loss = self.model(**inputs, labels=labels).loss
@@ -73,16 +79,20 @@ class BackTranslator:
         return loss.item()
 
     @torch.no_grad()
-    def generate_pseudo_targets(self, sources, tgt_lang):
+    def generate_pseudo_targets(self, sources, tgt_lang, src_lang="Unknown"):
         self.model.eval()
+        inputs = self._tokenize_encoder(sources, src_lang)
         
-        # Prompt: "Translate to C++: [Real Python]"
-        inputs = self._tokenize(sources, tgt_lang)
+        # DECODER FORCING
+        batch_size = inputs.input_ids.shape[0]
+        lang_id = self.tokenizer.convert_tokens_to_ids(f"<{tgt_lang}>")
+        decoder_input_ids = torch.tensor([[self.tokenizer.pad_token_id, lang_id]] * batch_size).to(self.device)
         
         with autocast(device_type=self.device.type, dtype=torch.bfloat16):
             generated_ids = self.model.generate(
                 input_ids=inputs["input_ids"],
                 attention_mask=inputs["attention_mask"],
+                decoder_input_ids=decoder_input_ids,
                 max_length=self.cfg["max_len"], 
                 num_beams=1, 
                 do_sample=False,
@@ -91,18 +101,13 @@ class BackTranslator:
         return self.tokenizer.batch_decode(generated_ids, skip_special_tokens=True)
 
     def train_bt_step(self, src_examples, src_lang, tgt_lang):
-        # 1. Generate Fake Targets (Real Python -> Fake C++)
-        pseudo_targets = self.generate_pseudo_targets(src_examples, tgt_lang=tgt_lang)
-        
-        # 2. Add BART-style noise to the Fake C++
+        pseudo_targets = self.generate_pseudo_targets(src_examples, tgt_lang, src_lang)
         noisy_pseudo_targets = self.corruptor.corrupt_batch(pseudo_targets)
         
         self.model.train()
         
-        # 3. Train backwards (Noisy Fake C++ -> Real Python)
-        # Prompt: "Translate to Python: [Noisy Fake C++]"
-        inputs = self._tokenize(noisy_pseudo_targets, tgt_lang=src_lang)
-        labels = self._get_labels(src_examples)
+        inputs = self._tokenize_encoder(noisy_pseudo_targets, tgt_lang)
+        labels = self._get_labels(src_examples, src_lang)
         
         with autocast(device_type=self.device.type, dtype=torch.bfloat16):
             loss = self.model(**inputs, labels=labels).loss
