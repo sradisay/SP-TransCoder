@@ -10,7 +10,7 @@ CONFIG = {
     "batch_size": 32,             
     "epochs": 40,
     "steps_per_epoch": 200,       
-    "lr": 5e-5, # Slightly lower LR since we skip DAE          
+    "lr": 5e-5,
     "max_len": 256,
     "weight_decay": 0.01,        
     "warmup_steps": 1000,         
@@ -76,12 +76,14 @@ def main():
             bt_loss_total += trainer.train_bt_step(unpaired_batch, bt_src_lang, bt_tgt_lang)
         
         print(f"Epoch {epoch+1}/{CONFIG['epochs']} | Sup Loss: {sup_loss_total/CONFIG['steps_per_epoch']:.4f} | BT Loss: {bt_loss_total/CONFIG['steps_per_epoch']:.4f}")
-
-        run_inference(trainer, unpaired_dataset, CONFIG['device'])
-        ckpt_path = f"{CONFIG['ckpt_dir']}_epoch_{epoch+1}"
-        print(f"Saving checkpoint to '{ckpt_path}'...")
-        trainer.model.save_pretrained(ckpt_path)
-        trainer.tokenizer.save_pretrained(ckpt_path)
+        
+        if (epoch + 1) % 5 == 0:
+            run_inference(trainer, unpaired_dataset, CONFIG['device'])
+            
+            ckpt_path = f"{CONFIG['ckpt_dir']}_epoch_{epoch+1}"
+            print(f"Saving checkpoint to '{ckpt_path}'...")
+            trainer.model.save_pretrained(ckpt_path)
+            trainer.tokenizer.save_pretrained(ckpt_path)
 
 if __name__ == "__main__":
     main()
