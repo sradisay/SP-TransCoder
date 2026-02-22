@@ -3,8 +3,8 @@
 #SBATCH --partition=free-gpu
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:1
-#SBATCH --cpus-per-task=4
-#SBATCH --mem=16GB
+#SBATCH --cpus-per-task=16
+#SBATCH --mem=64GB
 #SBATCH --time=48:00:00
 #SBATCH --output=logs/translate.log
 #SBATCH --error=logs/translate.err

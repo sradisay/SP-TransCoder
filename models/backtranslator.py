@@ -1,7 +1,7 @@
 import torch
 from torch import autocast
 from torch.nn.utils import clip_grad_norm_
-from transformers import AutoTokenizer, T5ForConditionalGeneration, get_linear_schedule_with_warmup
+from transformers import AutoTokenizer, T5ForConditionalGeneration, get_cosine_schedule_with_warmup
 from utils.noise import CodeCorruptor
 
 class BackTranslator:
@@ -12,6 +12,9 @@ class BackTranslator:
         self.tokenizer = AutoTokenizer.from_pretrained(config["model_name"])
         self.model = T5ForConditionalGeneration.from_pretrained(config["model_name"]).to(self.device)
         
+        # Note: gradient_checkpointing_enable() has been REMOVED to fully utilize your 32GB VRAM.
+        
+        # Best Practice: Exclude biases and LayerNorm from weight decay
         no_decay = ['bias', 'LayerNorm.weight']
         optimizer_grouped_parameters = [
             {'params': [p for n, p in self.model.named_parameters() if not any(nd in n for nd in no_decay)], 
@@ -22,10 +25,10 @@ class BackTranslator:
         
         self.optimizer = torch.optim.AdamW(optimizer_grouped_parameters, lr=config["lr"])
         
-        # Notice: GradScaler is GONE.
-        
         total_steps = (config["dae_epochs"] + config["bt_epochs"]) * config["steps_per_epoch"]
-        self.scheduler = get_linear_schedule_with_warmup(
+        
+        # Cosine scheduling provides a smoother convergence for unsupervised generation
+        self.scheduler = get_cosine_schedule_with_warmup(
             self.optimizer, 
             num_warmup_steps=config["warmup_steps"], 
             num_training_steps=total_steps
@@ -49,23 +52,22 @@ class BackTranslator:
         return labels
 
     def _optimize_step(self, loss):
-        """Cleaned up optimization step with NO scaler."""
+        """Clean optimization step for bfloat16."""
         loss.backward()
-        
-        # Clip gradients directly (no unscaling needed)
         clip_grad_norm_(self.model.parameters(), max_norm=1.0)
-        
         self.optimizer.step()
         self.scheduler.step()
-        self.optimizer.zero_grad()
+        
+        # set_to_none=True slightly improves memory tracking overhead
+        self.optimizer.zero_grad(set_to_none=True)
 
     def train_dae_step(self, real_codes, lang):
         self.model.train()
         corrupted_codes = self.corruptor.corrupt_batch(real_codes)
+        
         inputs = self._tokenize(corrupted_codes, lang, lang)
         labels = self._get_labels(real_codes)
         
-        # Explicitly declare dtype=torch.bfloat16
         with autocast(device_type=self.device.type, dtype=torch.bfloat16):
             loss = self.model(**inputs, labels=labels).loss
             
@@ -77,8 +79,8 @@ class BackTranslator:
         self.model.eval()
         inputs = self._tokenize(sources, src_lang, tgt_lang)
         
-        # Ensure generation runs in bf16 too for a slight speedup
         with autocast(device_type=self.device.type, dtype=torch.bfloat16):
+            # use_cache=True remains as it greatly accelerates auto-regressive decoding
             generated_ids = self.model.generate(
                 **inputs, 
                 max_length=self.cfg["max_len"], 
@@ -89,9 +91,13 @@ class BackTranslator:
         return self.tokenizer.batch_decode(generated_ids, skip_special_tokens=True)
 
     def train_bt_step(self, src_examples, src_lang, tgt_lang):
+        # 1. Generate pseudo-targets (eval mode)
         pseudo_targets = self.generate_pseudo_targets(src_examples, src_lang, tgt_lang)
+        
+        # 2. Add noise to pseudo-targets using BART-style masking
         noisy_pseudo_targets = self.corruptor.corrupt_batch(pseudo_targets)
         
+        # 3. Train to translate back to source (train mode)
         self.model.train()
         inputs = self._tokenize(noisy_pseudo_targets, tgt_lang, src_lang)
         labels = self._get_labels(src_examples)
