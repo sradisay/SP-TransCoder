@@ -1,6 +1,8 @@
 import os
+import json
 import multiprocessing
-from datasets import load_dataset
+import random
+from datasets import load_dataset, Dataset
 from torch.utils.data import DataLoader
 
 class InfiniteDataLoader:
@@ -16,19 +18,48 @@ class InfiniteDataLoader:
     def next_batch(self):
         return next(self.iterator)
 
+class PairedCodeDataset:
+    def __init__(self, json_filepath="data/codenet_paired_50k.json", batch_size=16):
+        print(f"\nLoading Paired CodeNet data from {json_filepath}...")
+        try:
+            with open(json_filepath, 'r', encoding='utf-8') as f:
+                pairs = json.load(f)
+            print(f"Successfully loaded {len(pairs)} exact Python-C++ pairs.")
+        except FileNotFoundError:
+            print(f"Warning: {json_filepath} not found. Creating a dummy dataset for testing.")
+            pairs = [{"python": "def add(a, b):\n    return a + b", "c++": "int add(int a, int b) {\n    return a + b;\n}"}] * 100
+
+        # Convert to HuggingFace dataset for easy dataloader integration
+        ds = Dataset.from_list(pairs)
+        
+        num_workers = min(4, int(os.environ.get("SLURM_CPUS_PER_TASK", multiprocessing.cpu_count())) // 2)
+        
+        dl = DataLoader(
+            ds, 
+            batch_size=batch_size, 
+            shuffle=True, 
+            num_workers=max(0, num_workers),
+            drop_last=True
+        )
+        self.dataloader = InfiniteDataLoader(dl)
+
+    def sample_batch(self):
+        """Returns a dict with 'python' and 'c++' keys containing paired code."""
+        return self.dataloader.next_batch()
+
 class UnpairedCodeDataset:
     def __init__(self, languages=("Python", "C++"), batch_size=16):
         self.langs = languages
         self.dataloaders = {}
         
         self.num_proc = int(os.environ.get("SLURM_CPUS_PER_TASK", multiprocessing.cpu_count()))
-        print(f"Dataset using {self.num_proc} CPU workers for preprocessing.")
+        print(f"\nUnpaired Dataset using {self.num_proc} CPU workers for preprocessing.")
         
         processed_datasets = {}
         
         for lang in languages:
             try:
-                print(f"\nLoading {lang} from The Stack...")
+                print(f"Loading {lang} from The Stack...")
                 ds = load_dataset(
                     "bigcode/the-stack-smol", 
                     data_dir=f"data/{lang.lower()}", 
@@ -38,10 +69,8 @@ class UnpairedCodeDataset:
                 
                 def process_and_chunk(batch, current_lang=lang):
                     valid_chunks = []
-                    
                     for content in batch["content"]:
                         clean_content = self._strip_headers(content)
-                        
                         lines = clean_content.split('\n')
                         chunk_size_lines = 50 
                         
