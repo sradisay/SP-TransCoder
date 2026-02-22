@@ -32,11 +32,7 @@ def run_inference(trainer, dataset, device, num_examples=4):
             if not code.strip(): continue
             
             inputs = trainer._tokenize_encoder([code], src_lang)
-            lang_id = trainer.tokenizer.convert_tokens_to_ids(f"<{tgt_lang}>")
-            decoder_input_ids = torch.tensor(
-                [[trainer.tokenizer.pad_token_id, lang_id]], 
-                device=device
-            )
+            decoder_input_ids = trainer._get_forced_decoder_ids(tgt_lang, batch_size=1)
 
             with torch.no_grad(), torch.autocast(device_type=device.type, dtype=torch.bfloat16):
                 out_ids = trainer.model.generate(
@@ -49,6 +45,7 @@ def run_inference(trainer, dataset, device, num_examples=4):
                 )
                 
                 translation = trainer.tokenizer.decode(out_ids[0], skip_special_tokens=True)
+                translation = translation.replace(f"{tgt_lang}:\n", "", 1).strip()
                 
             print(f"\n[{src_lang} Example {i+1}]\n{code[:200]}...")
             print(f"\n[Translated {tgt_lang}]\n{translation}\n" + "-"*40)

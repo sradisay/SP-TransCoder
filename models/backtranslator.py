@@ -12,10 +12,8 @@ class BackTranslator:
         self.tokenizer = AutoTokenizer.from_pretrained(config["model_name"])
         self.model = T5ForConditionalGeneration.from_pretrained(config["model_name"]).to(self.device)
         
-        # Add language tokens
-        self.lang_tokens = [f"<{lang}>" for lang in config["langs"]]
-        self.tokenizer.add_special_tokens({"additional_special_tokens": self.lang_tokens})
-        self.model.resize_token_embeddings(len(self.tokenizer))
+        # WE DO NOT ADD SPECIAL TOKENS. We rely entirely on the pre-trained embeddings 
+        # of the words "Python" and "C++" to maintain the latent space.
         
         no_decay = ['bias', 'LayerNorm.weight']
         optimizer_grouped_parameters = [
@@ -40,7 +38,6 @@ class BackTranslator:
         self.corruptor = CodeCorruptor()
         
     def _optimize_step(self, loss):
-        """Clean optimization step for bfloat16."""
         loss.backward()
         clip_grad_norm_(self.model.parameters(), max_norm=1.0)
         self.optimizer.step()
@@ -48,22 +45,34 @@ class BackTranslator:
         self.optimizer.zero_grad(set_to_none=True)
 
     def _tokenize_encoder(self, texts, src_lang):
-        """Append source lang to input so encoder knows what it's looking at"""
-        inputs = [f"{t} <{src_lang}>" for t in texts]
+        """PREPEND the language so it never gets truncated by max_len."""
+        inputs = [f"{src_lang}:\n{t}" for t in texts]
         return self.tokenizer(
             inputs, return_tensors="pt", padding=True, 
             truncation=True, max_length=self.cfg["max_len"]
         ).to(self.device)
 
     def _get_labels(self, texts, tgt_lang):
-        """Prepend target lang to output. Model MUST predict it first."""
-        labels_text = [f"<{tgt_lang}> {t}" for t in texts]
+        """PREPEND the target language to the labels. The model learns it MUST start with this."""
+        labels_text = [f"{tgt_lang}:\n{t}" for t in texts]
         labels = self.tokenizer(
             labels_text, return_tensors="pt", padding=True, 
             truncation=True, max_length=self.cfg["max_len"]
         ).input_ids.to(self.device)
         labels[labels == self.tokenizer.pad_token_id] = -100
         return labels
+
+    def _get_forced_decoder_ids(self, tgt_lang, batch_size):
+        """Builds the native decoder forcing prefix: <pad> target_lang:\n"""
+        # Encode the prefix string into pre-trained token IDs
+        prefix_ids = self.tokenizer(f"{tgt_lang}:\n", add_special_tokens=False).input_ids
+        
+        # Combine [PAD] + [prefix_ids]
+        forced_sequence = [self.tokenizer.pad_token_id] + prefix_ids
+        
+        # Expand to batch size
+        decoder_input_ids = torch.tensor([forced_sequence] * batch_size, device=self.device)
+        return decoder_input_ids
 
     def train_dae_step(self, real_codes, lang):
         self.model.train()
@@ -79,26 +88,30 @@ class BackTranslator:
         return loss.item()
 
     @torch.no_grad()
-    def generate_pseudo_targets(self, sources, tgt_lang, src_lang="Unknown"):
+    def generate_pseudo_targets(self, sources, tgt_lang, src_lang):
         self.model.eval()
         inputs = self._tokenize_encoder(sources, src_lang)
         
-        # DECODER FORCING
+        # NATIVE DECODER FORCING
         batch_size = inputs.input_ids.shape[0]
-        lang_id = self.tokenizer.convert_tokens_to_ids(f"<{tgt_lang}>")
-        decoder_input_ids = torch.tensor([[self.tokenizer.pad_token_id, lang_id]] * batch_size).to(self.device)
+        decoder_input_ids = self._get_forced_decoder_ids(tgt_lang, batch_size)
         
         with autocast(device_type=self.device.type, dtype=torch.bfloat16):
             generated_ids = self.model.generate(
                 input_ids=inputs["input_ids"],
                 attention_mask=inputs["attention_mask"],
-                decoder_input_ids=decoder_input_ids,
+                decoder_input_ids=decoder_input_ids, # Forced!
                 max_length=self.cfg["max_len"], 
                 num_beams=1, 
                 do_sample=False,
                 use_cache=True 
             )
-        return self.tokenizer.batch_decode(generated_ids, skip_special_tokens=True)
+            
+        # Strip the forced prefix out of the output so we just get clean code back
+        decoded_texts = self.tokenizer.batch_decode(generated_ids, skip_special_tokens=True)
+        clean_pseudo_targets = [text.replace(f"{tgt_lang}:\n", "", 1).strip() for text in decoded_texts]
+        
+        return clean_pseudo_targets
 
     def train_bt_step(self, src_examples, src_lang, tgt_lang):
         pseudo_targets = self.generate_pseudo_targets(src_examples, tgt_lang, src_lang)
