@@ -15,7 +15,7 @@ class SupervisedTranslationTrainer:
 
         self.model.gradient_checkpointing_enable()
 
-        self.micro_batch_size = 16
+        self.micro_batch_size = 64
         self.accumulation_steps = config["batch_size"] // self.micro_batch_size
 
     def _prepare_inputs(self, source_codes: List[str], target_codes: List[str], source_lang: str, target_lang: str):
