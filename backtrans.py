@@ -1,7 +1,7 @@
 
 from datasets import load_dataset
 
-# KEY = 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 for hugging face
+# KEY = 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
 
 token = "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"
 
