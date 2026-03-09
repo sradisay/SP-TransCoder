@@ -46,7 +46,7 @@ class DenoisingAutoEncoderTrainer:
         return " ".join(shuffled_tokens)
 
     def _prepare_inputs(self, corrupted_texts: List[str], lang: str):
-        prefix = f"Reconstruct {lang}: "
+        prefix = f"Translate to {lang}: "
         inputs = [prefix + text for text in corrupted_texts]
 
         return self.tokenizer(
