@@ -38,7 +38,7 @@ def main():
     config_sup["lr"] = CONFIG["lr_supervised"]
 
     config_ = CONFIG.copy()
-    config_sup["lr"] = CONFIG["lr_nois"]
+    config_["lr"] = CONFIG["lr_nois"]
 
     config_bt = CONFIG.copy()
     config_bt["lr"] = CONFIG["lr_backtranslation"]
