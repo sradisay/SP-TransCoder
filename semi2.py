@@ -25,8 +25,8 @@ def main():
     supervised_dataset = XLCoSTSnippetDataset()
     unpaired_dataset = UnpairedCodeDataset(languages=CONFIG["langs"])
 
-    cppdataset = unpaired_dataset["c++"]       # list of C++ dataset
-    pythondataset = unpaired_dataset["python"] # list of python dataset
+    # cppdataset = unpaired_dataset["c++"]       # list of C++ dataset
+    # pythondataset = unpaired_dataset["python"] # list of python dataset
 
     print(f"Loading {CONFIG['model_name']}...")
     model = T5ForConditionalGeneration.from_pretrained(CONFIG["model_name"]).to(CONFIG["device"])
@@ -52,8 +52,8 @@ def main():
         supervised_trainer.run_epoch(supervised_dataset, epoch)
 
         print("Starting Denois: ")
-        noise_trainer.run_epoch_difftypes(cppdataset, epoch)
-        noise_trainer.run_epoch_difftypes(pythondataset, epoch)
+        noise_trainer.run_epoch_difftypes(unpaired_dataset, epoch)
+        # noise_trainer.run_epoch_difftypes(unpaired_dataset, epoch)
 
         print("Starting Backtranslation Phase...")
         bt_trainer.run_epoch(unpaired_dataset, epoch)
