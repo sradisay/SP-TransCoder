@@ -27,8 +27,8 @@ def main():
     supervised_dataset = XLCoSTSnippetDataset()
     unpaired_dataset = CPPPythonDataset("CPP_Dataset_MujtabaAhmed.csv", "data_python.csv", f="data_python.py")
     # cpppythondata = CPPPythonDataset("CPP_Dataset_MujtabaAhmed.csv", "data_python.csv", f="data_python.py")
-    cppdataset = unpaired_dataset["c++"]       # list of C++ dataset
-    pythondataset = unpaired_dataset["python"] # list of python dataset
+    # cppdataset = unpaired_dataset["c++"]       # list of C++ dataset
+    # pythondataset = unpaired_dataset["python"] # list of python dataset
 
     print(f"Loading {CONFIG['model_name']}...")
     model = T5ForConditionalGeneration.from_pretrained(CONFIG["model_name"]).to(CONFIG["device"])
@@ -54,8 +54,8 @@ def main():
         supervised_trainer.run_epoch(supervised_dataset, epoch)
 
         print("Starting Denois: ")
-        noise_trainer.run_epoch(cppdataset, epoch)
-        noise_trainer.run_epoch(pythondataset, epoch)
+        noise_trainer.run_epoch(unpaired_dataset, epoch)
+        # noise_trainer.run_epoch(pythondataset, epoch)
 
         print("Starting Backtranslation Phase...")
         bt_trainer.run_epoch(unpaired_dataset, epoch)
