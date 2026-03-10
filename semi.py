@@ -53,7 +53,7 @@ def main():
 
         print("Starting Denois: ")
         noise_trainer.run_epoch(unpaired_dataset epoch)
-        noise_trainer.run_epoch(unpaired_dataset, epoch)
+        # noise_trainer.run_epoch(unpaired_dataset, epoch)
 
         print("Starting Backtranslation Phase...")
         bt_trainer.run_epoch(unpaired_dataset, epoch)
