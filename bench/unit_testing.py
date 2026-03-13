@@ -82,8 +82,7 @@ def main(model_name, tokenizer_name, output_file, source_lang, target_lang):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description = "Generate HumanEval-X translations for execution.")
+    parser = argparse.ArgumentParser(description = "Generate HumanEval-X translations for execution.")
     parser.add_argument("--m", type = str, required = True, help = "path or hf ID for the model")
     parser.add_argument("--t", type = str, required = False, default = "", help = "tokenizer")
     parser.add_argument("--out", type = str, default = "samples.jsonl", help = "Output JSONL file")

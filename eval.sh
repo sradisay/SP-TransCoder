@@ -4,6 +4,8 @@ OUTPUT_DIR="./eval_results"
 TEST_DIR="./data/pair_data_tok_1/C++-Python/"
 
 MODELS=(
+    "./checkpoints/codet5_semi_supervised_denoising_cycle_9"
+    "./checkpoints/codet5_semi_supervised_cycle_9"
     "./checkpoints/codet5_supervised_snippets_epoch_9"
     "./checkpoints/codet5_supervised_epoch_9"
     "Salesforce/codet5-small"

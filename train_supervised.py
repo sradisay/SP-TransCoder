@@ -1,6 +1,6 @@
 import torch
 from transformers import T5ForConditionalGeneration, AutoTokenizer
-from dataset import PairedCodeDataset, XLCoSTSnippetDataset
+from dataset import XLCoSTSnippetDataset
 from models.supervised_trainer import SupervisedTranslationTrainer
 
 CONFIG = {
