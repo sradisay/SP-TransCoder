@@ -2,12 +2,10 @@ import argparse
 from codebleu import calc_codebleu
 from evaluate import load_test_data
 
-CONFIG = {
-    "test_dir": "../data/pair_data_tok_1/C++-Python/",
-}
 
-def main(source_lang, target_lang, num_samples):
-    sources, references = load_test_data(source_lang, target_lang, limit=num_samples)
+def main(source_lang, target_lang, num_samples, test_dir):
+    # Pass test_dir to load_test_data to match the updated evaluate.py signature
+    sources, references = load_test_data(test_dir, source_lang, target_lang, limit=num_samples)
     predictions = sources
 
     print(f"\nEvaluating Naive Copy Baseline ({source_lang} -> {target_lang}) on {len(sources)} samples...")
@@ -57,6 +55,11 @@ if __name__ == "__main__":
         default=None,
         help="Number of samples to evaluate. If omitted, evaluates the entire dataset."
     )
+    parser.add_argument(
+        "--test_dir",
+        type=str,
+        help="Directory containing the test data."
+    )
 
     args = parser.parse_args()
-    main(args.source, args.target, args.num_samples)
+    main(args.source, args.target, args.num_samples, args.test_dir)
