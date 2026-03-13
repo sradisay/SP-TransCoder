@@ -2,7 +2,7 @@ import torch
 from transformers import T5ForConditionalGeneration, AutoTokenizer
 from dataset import UnpairedCodeDataset, PairedCodeDataset, XLCoSTSnippetDataset
 from models.supervised_trainer import SupervisedTranslationTrainer
-from models.backtranslator_t5prompts import BackTranslationTrainer
+from models.backtranslation_trainer import BackTranslationTrainer
 from models.denoising_trainer import DenoisingAutoEncoderTrainer
 
 CONFIG = {

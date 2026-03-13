@@ -1,6 +1,6 @@
 from transformers import T5ForConditionalGeneration
 from dataset import UnpairedCodeDataset
-from models.backtranslator_t5prompts import BackTranslationTrainer
+from models.backtranslation_trainer import BackTranslationTrainer
 import torch
 
 
