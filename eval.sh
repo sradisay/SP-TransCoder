@@ -1,6 +1,7 @@
 #!/bin/bash
 
 OUTPUT_DIR="./eval_results"
+TEST_DIR="./data/pair_data_tok_1/C++-Python/"
 
 MODELS=(
     "./checkpoints/codet5_supervised_snippets_epoch_9"
@@ -26,6 +27,7 @@ for MODEL_PATH in "${MODELS[@]}"; do
         --m "$MODEL_PATH" \
         --source "Python" \
         --target "C++" \
+        --test_dir "$TEST_DIR" \
         --c "$CACHE_PY2CPP" > "$LOG_PY2CPP"
 
     echo "  -> Running C++ to Python..."
@@ -36,6 +38,7 @@ for MODEL_PATH in "${MODELS[@]}"; do
         --m "$MODEL_PATH" \
         --source "C++" \
         --target "Python" \
+        --test_dir "$TEST_DIR" \
         --c "$CACHE_CPP2PY" > "$LOG_CPP2PY"
 
     echo "Done with $MODEL_NAME. Results saved in $MODEL_DIR/"

@@ -8,7 +8,6 @@ from codebleu import calc_codebleu
 from tqdm import tqdm
 
 CONFIG = {
-    "test_dir": "./data/pair_data_tok_1/C++-Python/",
     "max_len": 256,
     "device": torch.device("cuda" if torch.cuda.is_available() else "cpu"),
     "batch_size": 16
@@ -46,13 +45,13 @@ def _decode_and_clean(code_string):
     return cleaned_string.strip()
 
 
-def load_test_data(source_lang, target_lang, limit=None):
-    py_path = os.path.join(CONFIG["test_dir"], "test-C++-Python-tok.py")
-    cpp_path = os.path.join(CONFIG["test_dir"], "test-C++-Python-tok.cpp")
+def load_test_data(test_dir, source_lang, target_lang, limit=None):
+    py_path = os.path.join(test_dir, "test-C++-Python-tok.py")
+    cpp_path = os.path.join(test_dir, "test-C++-Python-tok.cpp")
 
     sources, references = [], []
 
-    print(f"Loading test data from {CONFIG['test_dir']}...")
+    print(f"Loading test data from {test_dir}...")
     with open(py_path, 'r', encoding='utf-8') as f_py, \
             open(cpp_path, 'r', encoding='utf-8') as f_cpp:
 
@@ -74,7 +73,7 @@ def load_test_data(source_lang, target_lang, limit=None):
     return sources, references
 
 
-def main(model_name, tokenizer_name, cache_file, source_lang, target_lang, num_samples):
+def main(model_name, tokenizer_name, cache_file, source_lang, target_lang, num_samples, test_dir):
     if os.path.exists(cache_file):
         print(f"Loading cached predictions from {cache_file}...")
         with open(cache_file, "r", encoding="utf-8") as f:
@@ -88,7 +87,7 @@ def main(model_name, tokenizer_name, cache_file, source_lang, target_lang, num_s
         print(f"Loading tokenizer from {tokenizer_name}...")
         tokenizer = AutoTokenizer.from_pretrained(tokenizer_name)
 
-        sources, references = load_test_data(source_lang, target_lang, limit=num_samples)
+        sources, references = load_test_data(test_dir, source_lang, target_lang, limit=num_samples)
         predictions = []
         batch_size = CONFIG["batch_size"]
 
@@ -157,6 +156,12 @@ if __name__ == "__main__":
         help="path or hf ID for the model"
     )
     parser.add_argument(
+        "--test_dir",
+        type=str,
+        required=True,
+        help="Directory containing the XLCost paired data"
+    )
+    parser.add_argument(
         "--t",
         type=str,
         required=False,
@@ -184,7 +189,6 @@ if __name__ == "__main__":
         default="C++",
         help="The target programming language."
     )
-
     parser.add_argument(
         "--num_samples",
         type=int,
@@ -200,4 +204,4 @@ if __name__ == "__main__":
     if not args.c:
         args.c = f"predictions_cache_{args.source}2{args.target}.json"
 
-    main(args.m, final_tokenizer_name, args.c, args.source, args.target, args.num_samples)
+    main(args.m, final_tokenizer_name, args.c, args.source, args.target, args.num_samples, args.test_dir)
