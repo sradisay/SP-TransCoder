@@ -6,8 +6,8 @@ SP-TransCoder is a machine learning project dedicated to intelligent code transl
 
 The project is organized into core training scripts at the root, supported by dedicated modules for model algorithms and benchmarking:
 
-* **`/models/`**: Contains the core algorithmic trainers (Supervised, Back-Translation, and Denoising Auto-Encoder). See the [`models/README.md`](models/README.md) for a deep dive into the training mechanics.
-* **`/bench/`**: Contains the evaluation suite, including CodeBLEU scoring, baseline generation, unit testing generation, and visual inspection tools. See the [`bench/README.md`](bench/README.md) for evaluation instructions.
+* **`/models/`**: Contains the core algorithmic trainers (Supervised, Back-Translation, and Denoising Auto-Encoder). See the [`models/README.md`](src/models/README.md) for a deep dive into the training mechanics.
+* **`/bench/`**: Contains the evaluation suite, including CodeBLEU scoring, baseline generation, unit testing generation, and visual inspection tools. See the [`bench/README.md`](src/bench/README.md) for evaluation instructions.
 * **Root Directory**: Contains the datasets, data preparation scripts, the main execution scripts for various training loops, and batch evaluation scripts.
 
 ## Data Management

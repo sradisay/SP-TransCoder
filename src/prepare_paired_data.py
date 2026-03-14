@@ -69,4 +69,4 @@ def extract_and_save_codenet(output_filepath="data/codenet_paired.json", limit_p
 
 
 if __name__ == "__main__":
-    extract_and_save_codenet("data/codenet_paired_50k.json", limit_pairs=50000)
+    extract_and_save_codenet("../data/codenet_paired_50k.json", limit_pairs=50000)
