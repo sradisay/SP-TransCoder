@@ -27,7 +27,7 @@ def main():
     for epoch in range(CONFIG["epochs"]):
         trainer.run_epoch(dataset, epoch)
 
-        save_path = f"./checkpoints/codet5_supervised_snippets_epoch_{epoch}"
+        save_path = f"../checkpoints/codet5_supervised_snippets_epoch_{epoch}"
         print(f"Saving checkpoint to {save_path}...")
         model.save_pretrained(save_path)
         tokenizer.save_pretrained(save_path)

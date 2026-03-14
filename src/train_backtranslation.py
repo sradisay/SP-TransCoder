@@ -20,4 +20,5 @@ trainer = BackTranslationTrainer(CONFIG, model)
 
 for epoch in range(CONFIG["epochs"]):
     trainer.run_epoch(dataset, epoch)
-    model.save_pretrained(f"./checkpoints/codet5_bt_epoch_{epoch}")
+
+    model.save_pretrained(f"../checkpoints/codet5_bt_epoch_{epoch}")

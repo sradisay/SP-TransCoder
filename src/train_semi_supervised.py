@@ -46,7 +46,7 @@ def main():
         print("Starting Backtranslation Phase...")
         bt_trainer.run_epoch(unpaired_dataset, epoch)
 
-        save_path = f"./checkpoints/codet5_semi_supervised_cycle_{epoch}"
+        save_path = f"../checkpoints/codet5_semi_supervised_cycle_{epoch}"
         print(f"Saving cycle checkpoint to {save_path}...")
         model.save_pretrained(save_path)
         tokenizer.save_pretrained(save_path)
