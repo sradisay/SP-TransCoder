@@ -1,14 +1,16 @@
 #!/bin/bash
 
-OUTPUT_DIR="../eval_results"
+OUTPUT_DIR="../eval_results3"
 TEST_DIR="../data/pair_data_tok_1/C++-Python/"
 
 MODELS=(
-    "../checkpoints/codet5_semi_supervised_denoising_cycle_9"
-    "../checkpoints/codet5_semi_supervised_cycle_9"
-    "../checkpoints/codet5_supervised_snippets_epoch_9"
-    "../checkpoints/codet5_supervised_epoch_9"
-    "Salesforce/codet5-small"
+#    "../checkpoints3/codet5_semi_supervised_base_cycle_9"
+#    "../checkpoints3/codet5_semi_supervised_with_denoising_base_cycle_9"
+#    "../checkpoints/codet5_semi_supervised_denoising_cycle_9"
+#    "../checkpoints/codet5_semi_supervised_base_cycle_9"
+#    "../checkpoints/codet5_supervised_snippets_epoch_9"
+#    "../checkpoints/codet5_supervised_epoch_9"
+#    "Salesforce/codet5-small"
 )
 
 mkdir -p "$OUTPUT_DIR"

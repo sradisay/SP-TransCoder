@@ -1,13 +1,9 @@
-# SP-TransCoder
-
-SP-TransCoder is a machine learning project dedicated to intelligent code translation between Python and C++. Leveraging the `Salesforce/codet5-small` architecture as a foundation, this repository explores several training paradigms—ranging from standard supervised fine-tuning to advanced semi-supervised cycles incorporating back-translation and denoising—to improve cross-lingual code generation.
-
 ## Repository Structure
 
 The project is organized into core training scripts at the root, supported by dedicated modules for model algorithms and benchmarking:
 
-* **`/models/`**: Contains the core algorithmic trainers (Supervised, Back-Translation, and Denoising Auto-Encoder). See the [`models/README.md`](src/models/README.md) for a deep dive into the training mechanics.
-* **`/bench/`**: Contains the evaluation suite, including CodeBLEU scoring, baseline generation, unit testing generation, and visual inspection tools. See the [`bench/README.md`](src/bench/README.md) for evaluation instructions.
+* **`/models/`**: Contains the core algorithmic trainers (Supervised, Back-Translation, and Denoising Auto-Encoder). See the [`models/README.md`](models/README.md) for a deep dive into the training mechanics.
+* **`/bench/`**: Contains the evaluation suite, including CodeBLEU scoring, baseline generation, unit testing generation, and visual inspection tools. See the [`bench/README.md`](bench/README.md) for evaluation instructions.
 * **Root Directory**: Contains the datasets, data preparation scripts, the main execution scripts for various training loops, and batch evaluation scripts.
 
 ## Data Management
